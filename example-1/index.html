@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Csound Web Example</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="script.js" type="module" defer></script>
+</head>
+
+<body>
+
+  <h1>Csound Web Example #1</h1>
+
+  <div id="dropzone">Drop .wav audio file here</div>
+  <div id="filename">No file loaded</div>
+
+  <canvas id="waveform" width="600" height="150"></canvas>
+
+
+  <button id="stopBtn">Stop</button>
+
+  <div class="volume-control">
+    <label>Volume:</label>
+    <input id="vol" type="range" min="0" max="1" step="0.01" value="1">
+  </div>
+
+</body>
+
+</html>
