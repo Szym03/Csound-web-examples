@@ -55,16 +55,16 @@ button:active {
     background-color: #3d8b40;
 }
 
-#stopBtn {
-    background-color: #f44336;
+#playPauseBtn {
+    background-color: #2196F3;
 }
 
-#stopBtn:hover {
-    background-color: #da190b;
+#playPauseBtn:hover {
+    background-color: #0b7dda;
 }
 
-#stopBtn:active {
-    background-color: #c41808;
+#playPauseBtn:active {
+    background-color: #0868b8;
 }
 
 /* Volume slider container */
