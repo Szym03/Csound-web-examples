@@ -10,6 +10,7 @@ nchnls = 2
 0dbfs  = 1
 
 chn_k "vol", 1
+chn_k "level", 2
 
 instr 1
 
@@ -17,8 +18,23 @@ instr 1
 
     ;Getting the string from the chnget allows us to dynamically change the file we are playing
     Sfile chnget "filename"
-    ar1, ar2 diskin2 Sfile, 1 
-            outs ar1 * kvol, ar2 * kvol
+    ar1, ar2 diskin2 Sfile, 1
+
+    ; Apply volume
+    aoutL = ar1 * kvol
+    aoutR = ar2 * kvol
+
+    ; Calculate RMS level (average of both channels)
+    krms rms (aoutL + aoutR) / 2, 20
+
+    ; Simple linear scaling (0-1)
+    klevel = krms * 2
+    klevel = (klevel > 1 ? 1 : klevel)
+
+    ; Send level to output channel
+    chnset klevel, "level"
+
+    outs aoutL, aoutR
 
 endin
 
@@ -26,7 +42,5 @@ endin
 </CsInstruments>
 <CsScore>
 
-i 1 0 30 ; play 30 seconds
-e
-
+i 1 0 z 
 </CsScore>

@@ -91,6 +91,10 @@ let pausedElapsedTime = 0;
 let animationFrameId = null;
 let isPlaying = false;
 
+// Level meter elements
+const meter = document.getElementById("meter");
+let meterAnimationId = null;
+
 function animateProgress() {
   if (!isPlaying || audioDuration === 0) return;
 
@@ -134,6 +138,58 @@ function stopProgressAnimation() {
   }
 }
 
+// Level meter update loop
+async function updateLevelMeters() {
+  // Read level value from Csound channel (0-1 range)
+  const level = await cs.getControlChannel("level");
+
+  // Update meter bar width and color based on level
+  if (meter && level !== undefined && level !== null) {
+    // Convert to dB and map to logarithmic scale for display
+    // Map -60dB to 0%, 0dB to 100%
+    let dbLevel;
+    if (level > 0.0001) {
+      dbLevel = 20 * Math.log10(level); // Convert to dB
+      // Map -60dB to 0%, 0dB to 100%
+      const displayWidth = ((dbLevel + 60) / 60) * 100;
+      meter.style.width = `${Math.max(0, Math.min(100, displayWidth))}%`;
+    } else {
+      meter.style.width = "0%";
+    }
+
+    // Change color based on thresholds 
+    if (level < 0.6) {
+      meter.style.backgroundColor = "#4CAF50"; // Green - safe
+    } else if (level < 0.8) {
+      meter.style.backgroundColor = "#FFC107"; // Yellow - moderate
+    } else if (level < 0.9) {
+      meter.style.backgroundColor = "#FF9800"; // Orange - high
+    } else {
+      meter.style.backgroundColor = "#F44336"; // Red - hot/clipping
+    }
+  }
+
+  // Continue animation loop
+  meterAnimationId = requestAnimationFrame(updateLevelMeters);
+}
+
+function startLevelMeters() {
+  if (!meterAnimationId) {
+    updateLevelMeters();
+  }
+}
+
+function stopLevelMeters() {
+  if (meterAnimationId) {
+    cancelAnimationFrame(meterAnimationId);
+    meterAnimationId = null;
+  }
+  // Reset meter to zero
+  if (meter) {
+    meter.style.width = "0%";
+  }
+}
+
 async function ensureAudioReady() {
   if (!audioInitialized) {
     // Resume the audio context (requires user gesture)
@@ -170,6 +226,7 @@ document.getElementById("playPauseBtn").onclick = async () => {
     await cs.pause();
     pauseProgressAnimation();
     btn.textContent = "Play";
+    // Note: Level meters continue running even when paused
   } else {
     // Currently paused, so resume
     await ensureAudioReady();
@@ -198,11 +255,12 @@ document.body.addEventListener('drop', async (e) => {
   const file = e.dataTransfer.files[0];
   if (!file) return;
 
-  // Ensure audio context is ready before doing anything (this mifht be our issue)
+  // Ensure audio context is ready before doing anything
   await ensureAudioReady();
 
-  // Stop any existing animation
+  // Stop any existing animations
   stopProgressAnimation();
+  stopLevelMeters();
 
   // Stop Csound before loading new file
   await cs.stop();
@@ -241,6 +299,7 @@ document.body.addEventListener('drop', async (e) => {
   // Auto-start playback and show play/pause button
   await cs.start();
   startProgressAnimation();
+  startLevelMeters();
   const playPauseBtn = document.getElementById("playPauseBtn");
   playPauseBtn.textContent = "Pause";
   playPauseBtn.style.display = "inline-block";

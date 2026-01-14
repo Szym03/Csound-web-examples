@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>Csound Web Example</title>
+  <title>Csound Web Audio Player</title>
   <link rel="stylesheet" href="styles.css">
   <script src="script.js" type="module" defer></script>
 </head>
@@ -19,6 +19,15 @@
 
 
   <button id="playPauseBtn">Pause</button>
+
+  <div class="level-meters">
+    <div class="meter-channel">
+      <label>Level</label>
+      <div class="meter-container">
+        <div class="meter-bar" id="meter"></div>
+      </div>
+    </div>
+  </div>
 
   <div class="volume-control">
     <label>Volume:</label>
