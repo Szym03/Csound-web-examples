@@ -28,6 +28,7 @@ header h1 {
 header p {
   font-size: 1.1rem;
   opacity: 0.9;
+  margin-bottom: 1.5rem;
 }
 
 main {
@@ -92,6 +93,17 @@ main {
   background: #ccc;
   cursor: not-allowed;
   pointer-events: none;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 2px solid white;
+  color: white;
+}
+
+.btn-outline:hover {
+  background: rgba(255, 255, 255, 0.15);
+  opacity: 1;
 }
 
 footer {
