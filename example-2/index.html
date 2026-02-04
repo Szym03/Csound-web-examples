@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Picture Gallery</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="script.js" type="module" defer></script>
+</head>
+
+<body>
+
+  <h1>Picture Gallery</h1>
+
+  <div class="controls">
+    <label for="imageInput" class="file-input-label">
+      Choose Pictures
+    </label>
+    <input type="file" id="imageInput" accept="image/*" multiple>
+    <button id="clearBtn">Clear All</button>
+  </div>
+
+  <div id="imageGallery" class="image-gallery">
+    <p class="placeholder">No images loaded. Click "Choose Pictures" to get started.</p>
+  </div>
+
+</body>
+
+</html>
