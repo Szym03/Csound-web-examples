@@ -8,7 +8,7 @@ body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background-color: #f5f5f5;
   padding: 20px;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
@@ -18,79 +18,211 @@ h1 {
   text-align: center;
 }
 
-.controls {
+/* Main controls for adding decades */
+.main-controls {
   display: flex;
-  gap: 15px;
-  margin-bottom: 30px;
-  align-items: center;
   justify-content: center;
+  margin-bottom: 30px;
 }
 
-#imageInput {
+.add-decade-btn {
+  background-color: #2196F3;
+  color: white;
+  padding: 15px 30px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 600;
+  transition: background-color 0.3s, transform 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.add-decade-btn:hover {
+  background-color: #1976D2;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Sections container */
+.decades-container {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.empty-state {
+  text-align: center;
+  color: #999;
+  font-size: 18px;
+  padding: 80px 20px;
+  background-color: white;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Individual section */
+.section-item {
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 3px 15px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.section-item:hover {
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Section header with label and controls */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.section-label-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.section-label {
+  font-size: 28px;
+  color: #333;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: background-color 0.3s;
+  min-width: 150px;
+}
+
+.section-label.editing {
+  background-color: rgba(255, 255, 255, 0.9);
+  outline: 2px solid #2196F3;
+}
+
+.edit-label-btn {
+  background-color: #FF9800;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s;
+}
+
+.edit-label-btn:hover {
+  background-color: #F57C00;
+}
+
+/* Section controls (color picker and remove) */
+.section-controls {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.color-picker-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #555;
+  font-weight: 500;
+}
+
+.color-picker {
+  width: 50px;
+  height: 35px;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.3s;
+}
+
+.color-picker:hover {
+  border-color: #2196F3;
+}
+
+.remove-section-btn {
+  background-color: #f44336;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s;
+}
+
+.remove-section-btn:hover {
+  background-color: #da190b;
+}
+
+/* Upload container */
+.upload-container {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.section-file-input {
   display: none;
 }
 
 .file-input-label {
+  display: inline-block;
   background-color: #4CAF50;
   color: white;
-  padding: 12px 24px;
-  border-radius: 5px;
+  padding: 12px 28px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 16px;
-  transition: background-color 0.3s;
+  font-weight: 500;
+  transition: background-color 0.3s, transform 0.2s;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .file-input-label:hover {
   background-color: #45a049;
+  transform: translateY(-2px);
 }
 
-#clearBtn {
-  background-color: #f44336;
-  color: white;
-  padding: 12px 24px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 16px;
-  transition: background-color 0.3s;
-}
-
-#clearBtn:hover {
-  background-color: #da190b;
-}
-
-.image-gallery {
+/* Section gallery */
+.section-gallery {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 20px;
   padding: 20px;
-  background-color: white;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  min-height: 300px;
+  background-color: rgba(255, 255, 255, 0.4);
+  border-radius: 8px;
+  min-height: 250px;
 }
 
 .placeholder {
   grid-column: 1 / -1;
   text-align: center;
-  color: #999;
-  padding: 50px;
-  font-size: 18px;
+  color: #777;
+  padding: 40px;
+  font-size: 16px;
 }
 
+/* Image containers */
 .image-container {
   position: relative;
   overflow: hidden;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   transition: transform 0.3s, box-shadow 0.3s;
-  background-color: #f9f9f9;
+  background-color: #fff;
   aspect-ratio: 1;
 }
 
 .image-container:hover {
   transform: translateY(-5px);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
 }
 
 .image-container img {
@@ -104,19 +236,20 @@ h1 {
   position: absolute;
   top: 10px;
   right: 10px;
-  background-color: rgba(244, 67, 54, 0.9);
+  background-color: rgba(244, 67, 54, 0.95);
   color: white;
   border: none;
   border-radius: 50%;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   cursor: pointer;
-  font-size: 18px;
+  font-size: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   opacity: 0;
-  transition: opacity 0.3s;
+  transition: opacity 0.3s, background-color 0.3s;
+  font-weight: bold;
 }
 
 .image-container:hover .remove-btn {
@@ -125,4 +258,23 @@ h1 {
 
 .image-container .remove-btn:hover {
   background-color: rgba(244, 67, 54, 1);
+  transform: scale(1.1);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .section-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .section-gallery {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 15px;
+  }
 }
