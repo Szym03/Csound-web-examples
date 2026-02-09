@@ -1,3 +1,75 @@
+//============= Csound setup =======================
+const url = "https://cdn.jsdelivr.net/npm/@csound/browser@7.0.0-beta20/dist/csound.js"
+let csound = null;
+
+const audioOrchestra = `
+    sr=44100
+    ksmps=128
+    0dbfs=1
+    nchnls=2
+
+    instr 1
+      Sfile strget p4
+      ilen filelen Sfile
+      a1, a2 mp3in Sfile
+      out a1, a2
+      if timeinsts() >= ilen then
+        Smsg sprintf "i 1 %f %f \\"%s\\"", ilen, ilen, Sfile
+        scoreline Smsg, 1
+      endif
+    endin
+     `;
+
+async function copyFileToLocal(csound, src, dest) {
+    // fetch the file
+    const srcfile = await fetch(src, { cache: "no-store" });
+    // get the file data as an array
+    const dat = await srcfile.arrayBuffer();
+    // write the data as a new file in the filesystem
+    await csound.fs.writeFile(dest, new Uint8Array(dat));
+}
+
+async function loadUserAudioFile(csound, file) {
+    // Read the user's file as an ArrayBuffer
+    const arrayBuffer = await file.arrayBuffer();
+    // Write it to Csound's filesystem
+    const filename = file.name;
+    await csound.fs.writeFile(filename, new Uint8Array(arrayBuffer));
+    return filename;
+}
+
+const startCsound = async () => {
+  const { Csound } = await import(url);
+  const csoundObj = await Csound({
+    useWorker: false,
+    useSPN: false,
+    outputChannelCount: 2,
+    audioContext: new AudioContext({ sampleRate: 44100 })
+  });
+
+  await csoundObj.compileOrc(audioOrchestra, 0);
+  await csoundObj.setOption("-odac");
+  await csoundObj.start();
+
+  await csoundObj.getNode();
+  const ctx = await csoundObj.getAudioContext();
+
+  csound = csoundObj;
+  console.log("Csound initialized and ready, sample rate:", ctx.sampleRate);
+  return csoundObj;
+};
+
+async function playAudioFile(filename) {
+  if (!csound) {
+    await startCsound();
+  }
+
+  // Play the audio file using instrument 1
+  await csound.inputMessage(`i 1 0 -1 "${filename}"`);
+  console.log(`Playing: ${filename}`);
+}
+
+//============ Application Code ========================
 // Section-based data structure
 let sections = [];
 let sectionIdCounter = 0;
@@ -17,9 +89,33 @@ const COLOR_PALETTE = [
 // DOM elements
 const sectionsContainer = document.getElementById('decadesContainer');
 const addSectionBtn = document.getElementById('addDecadeBtn');
+const audioFileInput = document.getElementById('audioFileInput');
 
 // Initialize: Add event listener for "Add Section" button
 addSectionBtn.addEventListener('click', addSection);
+
+// Initialize: Add event listener for audio file input
+audioFileInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  console.log("Loading audio file:", file.name);
+
+  // Initialize Csound if not already started
+  if (!csound) {
+    console.log("Starting Csound...");
+    await startCsound();
+  }
+
+  // Load the user's audio file into Csound's filesystem
+  const filename = await loadUserAudioFile(csound, file);
+
+  // Play the audio file
+  await playAudioFile(filename);
+
+  // Reset input so same file can be selected again
+  e.target.value = '';
+});
 
 // Add a new section
 function addSection() {

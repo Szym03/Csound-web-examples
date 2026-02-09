@@ -16,7 +16,7 @@ instr 1
 
     kvol chnget "vol"
 
-    ;Getting the string from the chnget allows us to dynamically change the file we are playing
+    ;Getting the string from the chnget allows to dynamically change the file we are playing
     Sfile chnget "filename"
     ar1, ar2 diskin2 Sfile, 1
 

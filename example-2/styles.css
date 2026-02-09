@@ -22,6 +22,7 @@ h1 {
 .main-controls {
   display: flex;
   justify-content: center;
+  gap: 15px;
   margin-bottom: 30px;
 }
 
@@ -40,6 +41,25 @@ h1 {
 
 .add-decade-btn:hover {
   background-color: #1976D2;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.audio-file-label {
+  background-color: #9C27B0;
+  color: white;
+  padding: 15px 30px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 600;
+  transition: background-color 0.3s, transform 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.audio-file-label:hover {
+  background-color: #7B1FA2;
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
