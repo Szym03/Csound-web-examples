@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>Picture Gallery</title>
+  <title>Memory Book</title>
   <link rel="stylesheet" href="styles.css">
   <script src="script.js" type="module" defer></script>
 </head>
@@ -14,8 +14,45 @@
 
   <div class="main-controls">
     <button id="addDecadeBtn" class="add-decade-btn">+ Add Section</button>
-    <label for="audioFileInput" class="audio-file-label">Load Audio File</label>
-    <input type="file" id="audioFileInput" accept="audio/*" style="display:none">
+    <button id="startSlideshowBtn" class="start-slideshow-btn">Start Slideshow</button>
+  </div>
+
+  <!-- Slideshow Modal -->
+  <div id="slideshowModal" class="slideshow-modal">
+    <div class="slideshow-container">
+      <button class="slideshow-close" id="closeSlideshowBtn">&times;</button>
+      <button class="slideshow-toggle-controls" id="slideshowToggleControlsBtn">Hide Controls</button>
+
+      <div class="slideshow-content" id="slideshowContent">
+        <div class="slideshow-image-container">
+          <img id="slideshowImage" src="" alt="Slideshow Image">
+        </div>
+        <div class="slideshow-info">
+          <h2 id="slideshowSectionLabel"></h2>
+          <p id="slideshowImageCounter"></p>
+          <p id="slideshowMusicInfo" class="slideshow-music-info"></p>
+        </div>
+      </div>
+
+      <div id="slideshowControlsWrapper" class="slideshow-controls-wrapper">
+        <div class="slideshow-controls">
+          <button id="slideshowPrevImageBtn" class="slideshow-nav-btn">&#10094; Prev Photo</button>
+          <button id="slideshowPlayPauseBtn" class="slideshow-play-btn">Pause</button>
+          <button id="slideshowNextImageBtn" class="slideshow-nav-btn">Next Photo &#10095;</button>
+        </div>
+
+        <div class="slideshow-section-controls">
+          <button id="slideshowPrevSectionBtn" class="slideshow-section-btn">&#9198; Previous Section</button>
+          <button id="slideshowNextSectionBtn" class="slideshow-section-btn">Next Section &#9197;</button>
+        </div>
+
+        <div class="slideshow-music-controls">
+          <button id="slideshowPrevSongBtn" class="slideshow-music-btn">&#9198; Prev Song</button>
+          <button id="slideshowMusicPlayPauseBtn" class="slideshow-music-btn">Pause Music</button>
+          <button id="slideshowNextSongBtn" class="slideshow-music-btn">Next Song &#9197;</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="decadesContainer" class="decades-container">

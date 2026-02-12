@@ -1,6 +1,15 @@
+// Keyboard Controls (Slideshow):
+// Left/Right Arrows - Navigate photos within section
+// Up/Down Arrows - Navigate between sections
+// Spacebar - Play/Pause slideshow
+// M - Toggle music play/pause
+// H - Show/Hide controls
+// Escape - Close slideshow
+
 //============= Csound setup =======================
 const url = "https://cdn.jsdelivr.net/npm/@csound/browser@7.0.0-beta20/dist/csound.js"
 let csound = null;
+let audioContext = null;
 
 const audioOrchestra = `
     sr=44100
@@ -20,15 +29,6 @@ const audioOrchestra = `
     endin
      `;
 
-async function copyFileToLocal(csound, src, dest) {
-    // fetch the file
-    const srcfile = await fetch(src, { cache: "no-store" });
-    // get the file data as an array
-    const dat = await srcfile.arrayBuffer();
-    // write the data as a new file in the filesystem
-    await csound.fs.writeFile(dest, new Uint8Array(dat));
-}
-
 async function loadUserAudioFile(csound, file) {
     // Read the user's file as an ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
@@ -40,11 +40,13 @@ async function loadUserAudioFile(csound, file) {
 
 const startCsound = async () => {
   const { Csound } = await import(url);
+  audioContext = new AudioContext({ sampleRate: 44100 });
+
   const csoundObj = await Csound({
     useWorker: false,
     useSPN: false,
     outputChannelCount: 2,
-    audioContext: new AudioContext({ sampleRate: 44100 })
+    audioContext: audioContext
   });
 
   await csoundObj.compileOrc(audioOrchestra, 0);
@@ -52,10 +54,9 @@ const startCsound = async () => {
   await csoundObj.start();
 
   await csoundObj.getNode();
-  const ctx = await csoundObj.getAudioContext();
 
   csound = csoundObj;
-  console.log("Csound initialized and ready, sample rate:", ctx.sampleRate);
+  console.log("Csound initialized and ready, sample rate:", audioContext.sampleRate);
   return csoundObj;
 };
 
@@ -64,9 +65,40 @@ async function playAudioFile(filename) {
     await startCsound();
   }
 
+  // Stop any currently playing audio
+  await stopAllAudio();
+
   // Play the audio file using instrument 1
   await csound.inputMessage(`i 1 0 -1 "${filename}"`);
   console.log(`Playing: ${filename}`);
+
+  // Resume audio context if it was suspended
+  if (audioContext && audioContext.state === 'suspended') {
+    await audioContext.resume();
+  }
+
+  return filename;
+}
+
+async function stopAllAudio() {
+  if (!csound) return;
+
+  // Stop all currently playing instruments
+  await csound.inputMessage('i -1 0 0');
+}
+
+async function pauseAudio() {
+  if (audioContext && audioContext.state === 'running') {
+    await audioContext.suspend();
+    console.log('Audio paused');
+  }
+}
+
+async function resumeAudio() {
+  if (audioContext && audioContext.state === 'suspended') {
+    await audioContext.resume();
+    console.log('Audio resumed');
+  }
 }
 
 //============ Application Code ========================
@@ -89,33 +121,50 @@ const COLOR_PALETTE = [
 // DOM elements
 const sectionsContainer = document.getElementById('decadesContainer');
 const addSectionBtn = document.getElementById('addDecadeBtn');
-const audioFileInput = document.getElementById('audioFileInput');
+const startSlideshowBtn = document.getElementById('startSlideshowBtn');
+
+// Slideshow elements
+const slideshowModal = document.getElementById('slideshowModal');
+const slideshowImage = document.getElementById('slideshowImage');
+const slideshowSectionLabel = document.getElementById('slideshowSectionLabel');
+const slideshowImageCounter = document.getElementById('slideshowImageCounter');
+const slideshowMusicInfo = document.getElementById('slideshowMusicInfo');
+const slideshowContent = document.getElementById('slideshowContent');
+const slideshowControlsWrapper = document.getElementById('slideshowControlsWrapper');
+const closeSlideshowBtn = document.getElementById('closeSlideshowBtn');
+const slideshowToggleControlsBtn = document.getElementById('slideshowToggleControlsBtn');
+const slideshowPrevImageBtn = document.getElementById('slideshowPrevImageBtn');
+const slideshowNextImageBtn = document.getElementById('slideshowNextImageBtn');
+const slideshowPrevSectionBtn = document.getElementById('slideshowPrevSectionBtn');
+const slideshowNextSectionBtn = document.getElementById('slideshowNextSectionBtn');
+const slideshowPlayPauseBtn = document.getElementById('slideshowPlayPauseBtn');
+const slideshowMusicPlayPauseBtn = document.getElementById('slideshowMusicPlayPauseBtn');
+const slideshowPrevSongBtn = document.getElementById('slideshowPrevSongBtn');
+const slideshowNextSongBtn = document.getElementById('slideshowNextSongBtn');
+
+// Slideshow state
+let slideshowActive = false;
+let slideshowSections = []; // Array of sections with their images
+let currentSectionIndex = 0; // Current section index
+let currentImageIndex = 0; // Current image within section
+let slideshowInterval = null;
+let slideshowPlaying = true;
+let currentSectionAudio = []; // Current section's audio files
+let currentAudioIndex = 0; // Current audio track index
+let musicPlaying = false;
+let currentAudioFilename = null; // Track the current playing filename
+let controlsVisible = true; // Track controls visibility
+let lastSectionId = null; // Track last section to detect changes
+
+// Preview audio state
+let previewPlayingButton = null; // Track which button is playing
+let previewAudioData = null; // Track which audio is playing in preview
 
 // Initialize: Add event listener for "Add Section" button
 addSectionBtn.addEventListener('click', addSection);
 
-// Initialize: Add event listener for audio file input
-audioFileInput.addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  console.log("Loading audio file:", file.name);
-
-  // Initialize Csound if not already started
-  if (!csound) {
-    console.log("Starting Csound...");
-    await startCsound();
-  }
-
-  // Load the user's audio file into Csound's filesystem
-  const filename = await loadUserAudioFile(csound, file);
-
-  // Play the audio file
-  await playAudioFile(filename);
-
-  // Reset input so same file can be selected again
-  e.target.value = '';
-});
+// Initialize: Add event listener for "Start Slideshow" button
+startSlideshowBtn.addEventListener('click', startSlideshow);
 
 // Add a new section
 function addSection() {
@@ -129,7 +178,8 @@ function addSection() {
     label: `Section ${sections.length + 1}`, // Default label
     bgColor: COLOR_PALETTE[colorIndex],
     images: [],
-    audio: [] // Empty for now
+    audio: [], // Empty for now
+    transitionSpeed: 3 // Default 3 seconds per photo
   };
 
   sections.push(section);
@@ -188,6 +238,28 @@ function renderSection(sectionData) {
 
   colorPickerLabel.appendChild(colorPicker);
 
+  // Transition speed control
+  const speedLabel = document.createElement('label');
+  speedLabel.className = 'speed-label';
+  speedLabel.textContent = 'Speed: ';
+
+  const speedInput = document.createElement('input');
+  speedInput.type = 'number';
+  speedInput.className = 'speed-input';
+  speedInput.min = '1';
+  speedInput.max = '10';
+  speedInput.step = '1';
+  speedInput.value = sectionData.transitionSpeed;
+  speedInput.title = 'Photo transition speed in seconds';
+  speedInput.addEventListener('change', (e) => updateTransitionSpeed(sectionData.id, parseInt(e.target.value)));
+
+  const speedUnit = document.createElement('span');
+  speedUnit.className = 'speed-unit';
+  speedUnit.textContent = 's';
+
+  speedLabel.appendChild(speedInput);
+  speedLabel.appendChild(speedUnit);
+
   // Remove section button
   const removeSectionBtn = document.createElement('button');
   removeSectionBtn.className = 'remove-section-btn';
@@ -195,6 +267,7 @@ function renderSection(sectionData) {
   removeSectionBtn.addEventListener('click', () => removeSection(sectionData.id));
 
   controls.appendChild(colorPickerLabel);
+  controls.appendChild(speedLabel);
   controls.appendChild(removeSectionBtn);
 
   header.appendChild(labelContainer);
@@ -218,6 +291,39 @@ function renderSection(sectionData) {
   fileInputLabel.appendChild(fileInput);
   uploadContainer.appendChild(fileInputLabel);
 
+  // Audio file input for this section
+  const audioInputLabel = document.createElement('label');
+  audioInputLabel.className = 'audio-input-label';
+  audioInputLabel.textContent = 'Add Music';
+
+  const audioInput = document.createElement('input');
+  audioInput.type = 'file';
+  audioInput.className = 'section-audio-input';
+  audioInput.accept = 'audio/*';
+  audioInput.multiple = true;
+  audioInput.addEventListener('change', (e) => handleAudioUpload(e, sectionData.id));
+
+  audioInputLabel.appendChild(audioInput);
+  uploadContainer.appendChild(audioInputLabel);
+
+  // Audio container for this section
+  const audioContainer = document.createElement('div');
+  audioContainer.className = 'section-audio-container';
+  audioContainer.dataset.sectionId = sectionData.id;
+
+  // Add placeholder if no audio
+  if (sectionData.audio.length === 0) {
+    const audioPlaceholder = document.createElement('p');
+    audioPlaceholder.className = 'audio-placeholder';
+    audioPlaceholder.textContent = 'No music yet. Click "Add Music" to upload.';
+    audioContainer.appendChild(audioPlaceholder);
+  } else {
+    // Render existing audio files
+    sectionData.audio.forEach((audioData, index) => {
+      displayAudioFile(audioData, index, sectionData.id, audioContainer);
+    });
+  }
+
   // Image gallery for this section
   const gallery = document.createElement('div');
   gallery.className = 'section-gallery';
@@ -239,6 +345,7 @@ function renderSection(sectionData) {
   // Assemble the section
   sectionElement.appendChild(header);
   sectionElement.appendChild(uploadContainer);
+  sectionElement.appendChild(audioContainer);
   sectionElement.appendChild(gallery);
 
   sectionsContainer.appendChild(sectionElement);
@@ -286,6 +393,19 @@ function updateSectionColor(sectionId, newColor) {
     const sectionElement = document.querySelector(`.section-item[data-section-id="${sectionId}"]`);
     if (sectionElement) {
       sectionElement.style.backgroundColor = newColor;
+    }
+  }
+}
+
+// Update section transition speed
+function updateTransitionSpeed(sectionId, newSpeed) {
+  const section = sections.find(s => s.id === sectionId);
+  if (section) {
+    section.transitionSpeed = Math.max(1, Math.min(10, newSpeed)); // Clamp between 1-10
+
+    // If this section is currently showing in slideshow, restart the interval
+    if (slideshowActive && slideshowSections[currentSectionIndex]?.id === sectionId) {
+      startSlideshowAutoAdvance();
     }
   }
 }
@@ -422,5 +542,524 @@ function refreshSectionGallery(sectionId) {
     section.images.forEach((imageData, index) => {
       displayImage(imageData, index, sectionId, gallery);
     });
+  }
+}
+
+// Handle audio upload for a specific section
+function handleAudioUpload(event, sectionId) {
+  const files = event.target.files;
+  const section = sections.find(s => s.id === sectionId);
+
+  if (!section || files.length === 0) return;
+
+  // Load each selected audio file
+  Array.from(files).forEach(file => {
+    if (file.type.startsWith('audio/')) {
+      loadAudioFile(file, sectionId);
+    }
+  });
+
+  // Reset input so the same file can be selected again if needed
+  event.target.value = '';
+}
+
+// Load an audio file
+function loadAudioFile(file, sectionId) {
+  const reader = new FileReader();
+
+  reader.onload = (e) => {
+    const audioData = {
+      src: e.target.result,
+      name: file.name,
+      file: file // Store the actual file object for Csound
+    };
+
+    // Find the section and add audio to its array
+    const section = sections.find(s => s.id === sectionId);
+    if (section) {
+      section.audio.push(audioData);
+
+      // Get the audio container element for this section
+      const audioContainer = document.querySelector(`.section-audio-container[data-section-id="${sectionId}"]`);
+      if (audioContainer) {
+        // Remove placeholder if it exists
+        const placeholder = audioContainer.querySelector('.audio-placeholder');
+        if (placeholder) {
+          placeholder.remove();
+        }
+
+        // Display the new audio file
+        const audioIndex = section.audio.length - 1;
+        displayAudioFile(audioData, audioIndex, sectionId, audioContainer);
+      }
+    }
+  };
+
+  reader.readAsDataURL(file);
+}
+
+// Display an audio file in the container
+function displayAudioFile(audioData, index, sectionId, audioContainer) {
+  const audioItem = document.createElement('div');
+  audioItem.className = 'audio-item';
+  audioItem.dataset.index = index;
+
+  const audioIcon = document.createElement('span');
+  audioIcon.className = 'audio-icon';
+  audioIcon.textContent = '\u266B'; // Music note symbol
+
+  const audioName = document.createElement('span');
+  audioName.className = 'audio-name';
+  audioName.textContent = audioData.name;
+
+  const playBtn = document.createElement('button');
+  playBtn.className = 'play-audio-btn';
+  playBtn.textContent = 'Play';
+  playBtn.addEventListener('click', async () => {
+    // Check if this button is already playing
+    if (previewPlayingButton === playBtn) {
+      // Stop the audio
+      await stopAllAudio();
+      playBtn.textContent = 'Play';
+      previewPlayingButton = null;
+      previewAudioData = null;
+    } else {
+      // Stop any other preview audio
+      if (previewPlayingButton) {
+        previewPlayingButton.textContent = 'Play';
+      }
+
+      // Initialize Csound if needed
+      if (!csound) {
+        await startCsound();
+      }
+
+      // Load and play the audio file
+      const filename = await loadUserAudioFile(csound, audioData.file);
+      await playAudioFile(filename);
+
+      // Update state
+      playBtn.textContent = 'Stop';
+      previewPlayingButton = playBtn;
+      previewAudioData = audioData;
+    }
+  });
+
+  const removeBtn = document.createElement('button');
+  removeBtn.className = 'remove-audio-btn';
+  removeBtn.innerHTML = '&times;';
+  removeBtn.title = 'Remove audio';
+  removeBtn.addEventListener('click', () => removeAudio(sectionId, index));
+
+  audioItem.appendChild(audioIcon);
+  audioItem.appendChild(audioName);
+  audioItem.appendChild(playBtn);
+  audioItem.appendChild(removeBtn);
+  audioContainer.appendChild(audioItem);
+}
+
+// Remove a specific audio file from a section
+async function removeAudio(sectionId, audioIndex) {
+  const section = sections.find(s => s.id === sectionId);
+  if (!section) return;
+
+  const audioToRemove = section.audio[audioIndex];
+
+  // If this audio is currently playing in preview, stop it
+  if (previewAudioData === audioToRemove) {
+    await stopAllAudio();
+    previewPlayingButton = null;
+    previewAudioData = null;
+  }
+
+  // Remove from array
+  section.audio.splice(audioIndex, 1);
+
+  // Refresh the audio container for this section
+  refreshSectionAudio(sectionId);
+}
+
+// Refresh the audio display for a specific section
+function refreshSectionAudio(sectionId) {
+  const section = sections.find(s => s.id === sectionId);
+  if (!section) return;
+
+  const audioContainer = document.querySelector(`.section-audio-container[data-section-id="${sectionId}"]`);
+  if (!audioContainer) return;
+
+  // Clear preview state if we're refreshing
+  previewPlayingButton = null;
+  previewAudioData = null;
+
+  audioContainer.innerHTML = '';
+
+  if (section.audio.length === 0) {
+    const placeholder = document.createElement('p');
+    placeholder.className = 'audio-placeholder';
+    placeholder.textContent = 'No music yet. Click "Add Music" to upload.';
+    audioContainer.appendChild(placeholder);
+  } else {
+    section.audio.forEach((audioData, index) => {
+      displayAudioFile(audioData, index, sectionId, audioContainer);
+    });
+  }
+}
+
+//============ Slideshow Functionality ========================
+
+// Start the slideshow
+function startSlideshow() {
+  // Collect sections that have images
+  slideshowSections = sections.filter(section => section.images.length > 0);
+
+  // Check if there are any images
+  if (slideshowSections.length === 0) {
+    alert('No images to show! Please add some images to your sections first.');
+    return;
+  }
+
+  // Initialize slideshow
+  slideshowActive = true;
+  currentSectionIndex = 0;
+  currentImageIndex = 0;
+  slideshowPlaying = true;
+  currentSectionAudio = [];
+  currentAudioIndex = 0;
+  musicPlaying = false;
+  currentAudioFilename = null;
+  controlsVisible = true;
+  lastSectionId = null;
+
+  // Reset controls visibility
+  slideshowContent.classList.remove('controls-hidden');
+  slideshowControlsWrapper.classList.remove('hidden');
+  slideshowToggleControlsBtn.textContent = 'Hide Controls';
+
+  // Show modal
+  slideshowModal.style.display = 'flex';
+
+  // Display first image
+  showSlideshowImage();
+
+  // Start auto-advance
+  startSlideshowAutoAdvance();
+
+  // Add event listeners
+  closeSlideshowBtn.addEventListener('click', closeSlideshow);
+  slideshowToggleControlsBtn.addEventListener('click', toggleControls);
+  slideshowPrevImageBtn.addEventListener('click', showPreviousImage);
+  slideshowNextImageBtn.addEventListener('click', showNextImage);
+  slideshowPrevSectionBtn.addEventListener('click', showPreviousSection);
+  slideshowNextSectionBtn.addEventListener('click', showNextSection);
+  slideshowPlayPauseBtn.addEventListener('click', toggleSlideshowPlayPause);
+  slideshowMusicPlayPauseBtn.addEventListener('click', toggleMusicPlayPause);
+  slideshowPrevSongBtn.addEventListener('click', playPreviousSong);
+  slideshowNextSongBtn.addEventListener('click', playNextSong);
+
+  // Keyboard navigation
+  document.addEventListener('keydown', handleSlideshowKeyboard);
+}
+
+// Close the slideshow
+function closeSlideshow() {
+  // Set flags first
+  slideshowActive = false;
+  slideshowPlaying = false;
+  musicPlaying = false;
+  lastSectionId = null;
+
+  // Stop auto-advance
+  if (slideshowInterval) {
+    clearInterval(slideshowInterval);
+    slideshowInterval = null;
+  }
+
+  // Stop all audio (async but we don't need to wait)
+  stopAllAudio().catch(err => console.error('Error stopping audio:', err));
+  currentAudioFilename = null;
+  currentSectionAudio = [];
+
+  // Hide modal
+  slideshowModal.style.display = 'none';
+
+  // Remove event listeners
+  closeSlideshowBtn.removeEventListener('click', closeSlideshow);
+  slideshowPrevImageBtn.removeEventListener('click', showPreviousImage);
+  slideshowNextImageBtn.removeEventListener('click', showNextImage);
+  slideshowPrevSectionBtn.removeEventListener('click', showPreviousSection);
+  slideshowNextSectionBtn.removeEventListener('click', showNextSection);
+  slideshowPlayPauseBtn.removeEventListener('click', toggleSlideshowPlayPause);
+  slideshowMusicPlayPauseBtn.removeEventListener('click', toggleMusicPlayPause);
+  slideshowPrevSongBtn.removeEventListener('click', playPreviousSong);
+  slideshowNextSongBtn.removeEventListener('click', playNextSong);
+  slideshowToggleControlsBtn.removeEventListener('click', toggleControls);
+  document.removeEventListener('keydown', handleSlideshowKeyboard);
+}
+
+// Show the current slide
+async function showSlideshowImage() {
+  if (currentSectionIndex < 0 || currentSectionIndex >= slideshowSections.length) return;
+
+  const currentSection = slideshowSections[currentSectionIndex];
+
+  // Ensure image index is valid
+  if (currentImageIndex < 0 || currentImageIndex >= currentSection.images.length) {
+    currentImageIndex = 0;
+  }
+
+  const currentImage = currentSection.images[currentImageIndex];
+
+  // Update image
+  slideshowImage.src = currentImage.src;
+  slideshowImage.alt = currentImage.name;
+
+  // Update section label
+  slideshowSectionLabel.textContent = currentSection.label;
+
+  // Update counter
+  slideshowImageCounter.textContent = `Image ${currentImageIndex + 1} of ${currentSection.images.length} | Section ${currentSectionIndex + 1} of ${slideshowSections.length}`;
+
+  // Update section navigation buttons
+  slideshowPrevSectionBtn.disabled = (slideshowSections.length <= 1);
+  slideshowNextSectionBtn.disabled = (slideshowSections.length <= 1);
+
+  // Update image navigation buttons
+  slideshowPrevImageBtn.disabled = (currentSection.images.length <= 1);
+  slideshowNextImageBtn.disabled = (currentSection.images.length <= 1);
+
+  // Handle audio when we move to a new section
+  if (lastSectionId !== currentSection.id) {
+    lastSectionId = currentSection.id;
+    currentSectionAudio = currentSection.audio;
+    currentAudioIndex = 0;
+
+    // Update music info display
+    updateMusicInfo();
+
+    // Only play audio if section has audio files
+    if (currentSectionAudio.length > 0) {
+      // Initialize Csound if needed
+      if (!csound) {
+        await startCsound();
+      }
+
+      // Play the first audio file from this section
+      await playSongByIndex(0);
+    } else {
+      // No audio in this section
+      await stopAllAudio();
+      musicPlaying = false;
+      currentAudioFilename = null;
+      slideshowMusicPlayPauseBtn.textContent = 'No Music';
+      slideshowMusicPlayPauseBtn.disabled = true;
+    }
+  }
+}
+
+// Update the music info display
+function updateMusicInfo() {
+  if (currentSectionAudio.length === 0) {
+    slideshowMusicInfo.textContent = 'No music in this section';
+    slideshowPrevSongBtn.disabled = true;
+    slideshowNextSongBtn.disabled = true;
+    slideshowMusicPlayPauseBtn.disabled = true;
+  } else {
+    const currentSong = currentSectionAudio[currentAudioIndex];
+    slideshowMusicInfo.textContent = `♫ ${currentSong.name} (${currentAudioIndex + 1}/${currentSectionAudio.length})`;
+    slideshowPrevSongBtn.disabled = false;
+    slideshowNextSongBtn.disabled = false;
+    slideshowMusicPlayPauseBtn.disabled = false;
+  }
+}
+
+// Play a song by index from current section
+async function playSongByIndex(index) {
+  if (index < 0 || index >= currentSectionAudio.length) return;
+
+  currentAudioIndex = index;
+  const audioData = currentSectionAudio[index];
+
+  // Load and play the audio file
+  const filename = await loadUserAudioFile(csound, audioData.file);
+  currentAudioFilename = await playAudioFile(filename);
+  musicPlaying = true;
+  slideshowMusicPlayPauseBtn.textContent = 'Pause Music';
+
+  // Update music info
+  updateMusicInfo();
+}
+
+// Show previous image in current section
+function showPreviousImage() {
+  const currentSection = slideshowSections[currentSectionIndex];
+  currentImageIndex--;
+  if (currentImageIndex < 0) {
+    currentImageIndex = currentSection.images.length - 1; // Loop to end of section
+  }
+  showSlideshowImage();
+}
+
+// Show next image in current section
+function showNextImage() {
+  const currentSection = slideshowSections[currentSectionIndex];
+  currentImageIndex++;
+  if (currentImageIndex >= currentSection.images.length) {
+    currentImageIndex = 0; // Loop to beginning of section
+  }
+  showSlideshowImage();
+}
+
+// Show previous section
+function showPreviousSection() {
+  currentSectionIndex--;
+  if (currentSectionIndex < 0) {
+    currentSectionIndex = slideshowSections.length - 1; // Loop to last section
+  }
+  currentImageIndex = 0; // Start at first image of section
+  showSlideshowImage();
+  // Restart auto-advance with new section's speed
+  if (slideshowPlaying) {
+    startSlideshowAutoAdvance();
+  }
+}
+
+// Show next section
+function showNextSection() {
+  currentSectionIndex++;
+  if (currentSectionIndex >= slideshowSections.length) {
+    currentSectionIndex = 0; // Loop to first section
+  }
+  currentImageIndex = 0; // Start at first image of section
+  showSlideshowImage();
+  // Restart auto-advance with new section's speed
+  if (slideshowPlaying) {
+    startSlideshowAutoAdvance();
+  }
+}
+
+// Toggle play/pause
+function toggleSlideshowPlayPause() {
+  slideshowPlaying = !slideshowPlaying;
+
+  if (slideshowPlaying) {
+    slideshowPlayPauseBtn.textContent = 'Pause';
+    startSlideshowAutoAdvance();
+  } else {
+    slideshowPlayPauseBtn.textContent = 'Play';
+    if (slideshowInterval) {
+      clearInterval(slideshowInterval);
+      slideshowInterval = null;
+    }
+  }
+}
+
+// Start auto-advance timer
+function startSlideshowAutoAdvance() {
+  // Clear existing interval if any
+  if (slideshowInterval) {
+    clearInterval(slideshowInterval);
+  }
+
+  // Get transition speed from current section (default to 3 seconds)
+  const currentSection = slideshowSections[currentSectionIndex];
+  const transitionSpeed = currentSection?.transitionSpeed || 3;
+
+  // Auto-advance based on section's transition speed (only within current section)
+  slideshowInterval = setInterval(() => {
+    if (slideshowPlaying && slideshowActive) {
+      showNextImage();
+    }
+  }, transitionSpeed * 1000);
+}
+
+// Toggle music play/pause
+async function toggleMusicPlayPause() {
+  if (currentSectionAudio.length === 0) return;
+
+  if (musicPlaying) {
+    // Pause the music
+    await pauseAudio();
+    musicPlaying = false;
+    slideshowMusicPlayPauseBtn.textContent = 'Play Music';
+  } else {
+    // Resume the music
+    await resumeAudio();
+    musicPlaying = true;
+    slideshowMusicPlayPauseBtn.textContent = 'Pause Music';
+  }
+}
+
+// Play previous song
+async function playPreviousSong() {
+  if (currentSectionAudio.length === 0) return;
+
+  let newIndex = currentAudioIndex - 1;
+  if (newIndex < 0) {
+    newIndex = currentSectionAudio.length - 1; // Loop to end
+  }
+
+  await playSongByIndex(newIndex);
+}
+
+// Play next song
+async function playNextSong() {
+  if (currentSectionAudio.length === 0) return;
+
+  let newIndex = currentAudioIndex + 1;
+  if (newIndex >= currentSectionAudio.length) {
+    newIndex = 0; // Loop to beginning
+  }
+
+  await playSongByIndex(newIndex);
+}
+
+// Toggle controls visibility
+function toggleControls() {
+  controlsVisible = !controlsVisible;
+
+  if (controlsVisible) {
+    slideshowContent.classList.remove('controls-hidden');
+    slideshowControlsWrapper.classList.remove('hidden');
+    slideshowToggleControlsBtn.textContent = 'Hide Controls';
+  } else {
+    slideshowContent.classList.add('controls-hidden');
+    slideshowControlsWrapper.classList.add('hidden');
+    slideshowToggleControlsBtn.textContent = 'Show Controls';
+  }
+}
+
+// Handle keyboard navigation
+function handleSlideshowKeyboard(e) {
+  if (!slideshowActive) return;
+
+  switch(e.key) {
+    case 'ArrowLeft':
+      showPreviousImage();
+      break;
+    case 'ArrowRight':
+      showNextImage();
+      break;
+    case 'ArrowUp':
+      showPreviousSection();
+      break;
+    case 'ArrowDown':
+      showNextSection();
+      break;
+    case ' ':
+    case 'Spacebar':
+      e.preventDefault();
+      toggleSlideshowPlayPause();
+      break;
+    case 'Escape':
+      closeSlideshow();
+      break;
+    case 'm':
+    case 'M':
+      toggleMusicPlayPause();
+      break;
+    case 'h':
+    case 'H':
+      toggleControls();
+      break;
   }
 }
