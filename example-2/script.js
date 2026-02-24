@@ -7,7 +7,7 @@
 // Escape - Close slideshow
 
 //============= Csound setup =======================
-const url = "https://cdn.jsdelivr.net/npm/@csound/browser@7.0.0-beta20/dist/csound.js"
+const url = "https://cdn.jsdelivr.net/npm/@csound/browser@7.0.0-beta26/dist/csound.js"
 let csound = null;
 let audioContext = null;
 
@@ -19,20 +19,13 @@ const audioOrchestra = `
 
     instr 1
       Sfile strget p4
-      ilen filelen Sfile
-      a1, a2 mp3in Sfile
+      a1, a2 diskin Sfile, 1
       out a1, a2
-      if timeinsts() >= ilen then
-        Smsg sprintf "i 1 %f %f \\"%s\\"", ilen, ilen, Sfile
-        scoreline Smsg, 1
-      endif
     endin
      `;
 
 async function loadUserAudioFile(csound, file) {
-    // Read the user's file as an ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
-    // Write it to Csound's filesystem
     const filename = file.name;
     await csound.fs.writeFile(filename, new Uint8Array(arrayBuffer));
     return filename;
@@ -565,37 +558,30 @@ function handleAudioUpload(event, sectionId) {
 
 // Load an audio file
 function loadAudioFile(file, sectionId) {
-  const reader = new FileReader();
-
-  reader.onload = (e) => {
-    const audioData = {
-      src: e.target.result,
-      name: file.name,
-      file: file // Store the actual file object for Csound
-    };
-
-    // Find the section and add audio to its array
-    const section = sections.find(s => s.id === sectionId);
-    if (section) {
-      section.audio.push(audioData);
-
-      // Get the audio container element for this section
-      const audioContainer = document.querySelector(`.section-audio-container[data-section-id="${sectionId}"]`);
-      if (audioContainer) {
-        // Remove placeholder if it exists
-        const placeholder = audioContainer.querySelector('.audio-placeholder');
-        if (placeholder) {
-          placeholder.remove();
-        }
-
-        // Display the new audio file
-        const audioIndex = section.audio.length - 1;
-        displayAudioFile(audioData, audioIndex, sectionId, audioContainer);
-      }
-    }
+  const audioData = {
+    name: file.name,
+    file: file
   };
 
-  reader.readAsDataURL(file);
+  // Find the section and add audio to its array
+  const section = sections.find(s => s.id === sectionId);
+  if (section) {
+    section.audio.push(audioData);
+
+    // Get the audio container element for this section
+    const audioContainer = document.querySelector(`.section-audio-container[data-section-id="${sectionId}"]`);
+    if (audioContainer) {
+      // Remove placeholder if it exists
+      const placeholder = audioContainer.querySelector('.audio-placeholder');
+      if (placeholder) {
+        placeholder.remove();
+      }
+
+      // Display the new audio file
+      const audioIndex = section.audio.length - 1;
+      displayAudioFile(audioData, audioIndex, sectionId, audioContainer);
+    }
+  }
 }
 
 // Display an audio file in the container

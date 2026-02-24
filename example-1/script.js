@@ -1,9 +1,39 @@
-import { Csound } from "https://cdn.jsdelivr.net/npm/@csound/browser@6.18.7/dist/csound.js";
+const url = "https://cdn.jsdelivr.net/npm/@csound/browser@7.0.0-beta26/dist/csound.js";
 
-async function loadCSD(url) {
-  const res = await fetch(url);
-  return await res.text();
-}
+const orc = `
+sr = 44100
+ksmps = 256
+nchnls = 2
+0dbfs  = 1
+
+instr 1
+
+    kvol chnget "vol"
+
+    ;Getting the string from the chnget allows to dynamically change the file we are playing
+    Sfile chnget "filename"
+    ar1, ar2 diskin Sfile, 1
+
+    ; Apply volume
+    aoutL = ar1 * kvol
+    aoutR = ar2 * kvol
+
+    ; Calculate RMS level (average of both channels)
+    krms rms (aoutL + aoutR) / 2, 20
+
+    ; Simple linear scaling (0-1)
+    klevel = krms * 2
+    klevel = (klevel > 1 ? 1 : klevel)
+
+    ; Send level to output channel
+    chnset klevel, "level"
+
+    out aoutL, aoutR
+
+endin
+
+schedule(1, 0, -1)
+`;
 
 // Store waveform data for redrawing with progress bar
 let waveformData = null;
@@ -201,10 +231,16 @@ async function ensureAudioReady() {
   }
 }
 
-const cs = await Csound();
+// Initialize Csound with 7.0 API
+const { Csound } = await import(url);
+const cs = await Csound({
+  useWorker: false,
+  useSPN: false,
+  outputChannelCount: 2,
+});
 
-const csd = await loadCSD("main.csd");
-await cs.compileCsdText(csd);
+await cs.compileOrc(orc);
+await cs.setOption("-odac");
 
 // Volume slider - set initial volume in Csound
 const volSlider = document.getElementById("vol");
@@ -265,12 +301,12 @@ document.body.addEventListener('drop', async (e) => {
   // Stop Csound before loading new file
   await cs.stop();
   await cs.reset();
-  
-  // Load dropped file 
+
+  // Load dropped file
   const arrayBuffer = await file.arrayBuffer();
   const droppedFileData = new Uint8Array(arrayBuffer);
   await cs.fs.writeFile(`/${file.name}`, droppedFileData);
-  
+
   // Draw waveform using Web Audio API
   try {
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -281,21 +317,22 @@ document.body.addEventListener('drop', async (e) => {
   } catch (err) {
     console.error("Could not draw waveform:", err);
   }
-  
-  // Recompile CSD
-  await cs.compileCsdText(await loadCSD("main.csd"));
-  
+
+  // Recompile orchestra
+  await cs.compileOrc(orc);
+  await cs.setOption("-odac");
+
   // Reset volume to slider value
   await cs.setControlChannel("vol", parseFloat(volSlider.value));
-  
+
   // Update filename display
   document.getElementById("filename").textContent = `Loaded: ${file.name}`;
-  
+
   console.log(`Loaded: ${file.name}`);
-  
+
   // Update control channel with new filename
   await cs.setStringChannel('filename', `/${file.name}`);
-  
+
   // Auto-start playback and show play/pause button
   await cs.start();
   startProgressAnimation();
