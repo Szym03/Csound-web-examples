@@ -12,13 +12,17 @@
 
   <h1>Audio player</h1>
 
-  <div id="dropzone">Drop audio file here (.wav, .mp3, etc.)</div>
-  <div id="filename">No file loaded</div>
+  <div id="dropzone">Drop audio files here (.wav, .mp3, etc.)</div>
+  <div id="filename"></div>
 
   <canvas id="waveform" width="600" height="150"></canvas>
 
-
-  <button id="playPauseBtn">Pause</button>
+  <div class="playback-controls">
+    <button id="prevBtn">Previous</button>
+    <button id="rewindBtn">Rewind</button>
+    <button id="playPauseBtn">Pause</button>
+    <button id="nextBtn">Next</button>
+  </div>
 
   <div class="level-meters">
     <div class="meter-channel">

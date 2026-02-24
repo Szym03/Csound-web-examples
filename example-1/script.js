@@ -39,6 +39,10 @@ schedule(1, 0, -1)
 let waveformData = null;
 let audioDuration = 0;
 
+// Store multiple files (just the File objects)
+let audioFiles = [];
+let currentFileIndex = -1;
+
 function drawWaveform(audioBuffer) {
   const canvas = document.getElementById("waveform");
   const ctx = canvas.getContext("2d");
@@ -250,8 +254,123 @@ volSlider.oninput = () => {
   cs.setControlChannel("vol", parseFloat(volSlider.value));
 };
 
-// Hide play/pause button initially
+// Initialize file display
+updateFileDisplay();
+
+// Hide playback controls initially
 document.getElementById("playPauseBtn").style.display = "none";
+document.getElementById("prevBtn").style.display = "none";
+document.getElementById("nextBtn").style.display = "none";
+document.getElementById("rewindBtn").style.display = "none";
+
+// Function to load and play a file by index
+async function loadAndPlayFile(index) {
+  if (index < 0 || index >= audioFiles.length) return;
+
+  currentFileIndex = index;
+  const file = audioFiles[index];
+
+  // Update display immediately for responsive UI
+  updateFileDisplay();
+  updateButtonStates();
+
+  // Ensure audio context is ready
+  await ensureAudioReady();
+
+  // Stop any existing animations
+  stopProgressAnimation();
+  stopLevelMeters();
+
+  // Properly stop and reset Csound
+  try {
+    await cs.stop();
+  } catch (err) {
+    console.log("Stop error (can be ignored):", err);
+  }
+
+  try {
+    await cs.reset();
+  } catch (err) {
+    console.log("Reset error (can be ignored):", err);
+  }
+
+  // Load the file into Csound's filesystem
+  const arrayBuffer = await file.arrayBuffer();
+  const fileData = new Uint8Array(arrayBuffer);
+  await cs.fs.writeFile(`/${file.name}`, fileData);
+
+  // Draw waveform using Web Audio API
+  try {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+    waveformData = audioBuffer.getChannelData(0);
+    audioDuration = audioBuffer.duration;
+    drawWaveform(waveformData);
+  } catch (err) {
+    console.error("Could not draw waveform:", err);
+  }
+
+  // Recompile orchestra
+  await cs.compileOrc(orc);
+  await cs.setOption("-odac");
+
+  // Reset volume to slider value
+  await cs.setControlChannel("vol", parseFloat(volSlider.value));
+
+  // Update control channel with filename
+  await cs.setStringChannel('filename', `/${file.name}`);
+
+  // Auto-start playback
+  await cs.start();
+
+  // Reset playback state
+  pausedElapsedTime = 0;
+  playbackStartTime = performance.now();
+  isPlaying = true;
+
+  startProgressAnimation();
+  startLevelMeters();
+  document.getElementById("playPauseBtn").textContent = "Pause";
+}
+
+// Update button states based on current file index
+function updateButtonStates() {
+  const prevBtn = document.getElementById("prevBtn");
+  const nextBtn = document.getElementById("nextBtn");
+
+  prevBtn.disabled = audioFiles.length <= 1;
+  nextBtn.disabled = audioFiles.length <= 1;
+}
+
+// Update file list display
+function updateFileDisplay() {
+  const filenameDiv = document.getElementById("filename");
+
+  if (audioFiles.length === 0) {
+    filenameDiv.innerHTML = "No files loaded";
+    return;
+  }
+
+  let html = '<div class="file-list">';
+  audioFiles.forEach((file, index) => {
+    const isPlaying = index === currentFileIndex;
+    const className = isPlaying ? 'file-item playing' : 'file-item';
+    html += `<div class="${className}" data-index="${index}">
+      ${isPlaying ? '▶ ' : ''}${file.name}
+    </div>`;
+  });
+  html += '</div>';
+
+  filenameDiv.innerHTML = html;
+
+  // Add click handlers to file items
+  document.querySelectorAll('.file-item').forEach(item => {
+    item.addEventListener('click', async () => {
+      const index = parseInt(item.dataset.index);
+      await loadAndPlayFile(index);
+    });
+  });
+}
 
 // Play/Pause button toggle
 document.getElementById("playPauseBtn").onclick = async () => {
@@ -272,6 +391,37 @@ document.getElementById("playPauseBtn").onclick = async () => {
   }
 };
 
+// Previous button
+document.getElementById("prevBtn").onclick = async () => {
+  if (audioFiles.length === 0) return;
+
+  let newIndex = currentFileIndex - 1;
+  if (newIndex < 0) {
+    newIndex = audioFiles.length - 1; // Loop to end
+  }
+
+  await loadAndPlayFile(newIndex);
+};
+
+// Next button
+document.getElementById("nextBtn").onclick = async () => {
+  if (audioFiles.length === 0) return;
+
+  let newIndex = currentFileIndex + 1;
+  if (newIndex >= audioFiles.length) {
+    newIndex = 0; // Loop to beginning
+  }
+
+  await loadAndPlayFile(newIndex);
+};
+
+// Rewind button
+document.getElementById("rewindBtn").onclick = async () => {
+  if (audioFiles.length === 0) return;
+
+  await loadAndPlayFile(currentFileIndex);
+};
+
 // Drag and drop
 document.body.addEventListener('dragover', (e) => {
   e.preventDefault();
@@ -288,56 +438,37 @@ document.body.addEventListener('drop', async (e) => {
   e.stopPropagation();
   document.body.style.backgroundColor = '';
 
-  const file = e.dataTransfer.files[0];
-  if (!file) return;
+  const files = Array.from(e.dataTransfer.files);
+  if (files.length === 0) return;
 
-  // Ensure audio context is ready before doing anything
+  // Ensure audio context is ready
   await ensureAudioReady();
 
-  // Stop any existing animations
-  stopProgressAnimation();
-  stopLevelMeters();
+  // Add files to the list (just store File objects)
+  files.forEach(file => {
+    audioFiles.push(file);
+    console.log(`Added: ${file.name}`);
+  });
 
-  // Stop Csound before loading new file
-  await cs.stop();
-  await cs.reset();
+  // Update the file list display
+  updateFileDisplay();
 
-  // Load dropped file
-  const arrayBuffer = await file.arrayBuffer();
-  const droppedFileData = new Uint8Array(arrayBuffer);
-  await cs.fs.writeFile(`/${file.name}`, droppedFileData);
-
-  // Draw waveform using Web Audio API
-  try {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
-    waveformData = audioBuffer.getChannelData(0);
-    audioDuration = audioBuffer.duration;
-    drawWaveform(waveformData);
-  } catch (err) {
-    console.error("Could not draw waveform:", err);
-  }
-
-  // Recompile orchestra
-  await cs.compileOrc(orc);
-  await cs.setOption("-odac");
-
-  // Reset volume to slider value
-  await cs.setControlChannel("vol", parseFloat(volSlider.value));
-
-  // Update filename display
-  document.getElementById("filename").textContent = `Loaded: ${file.name}`;
-
-  console.log(`Loaded: ${file.name}`);
-
-  // Update control channel with new filename
-  await cs.setStringChannel('filename', `/${file.name}`);
-
-  // Auto-start playback and show play/pause button
-  await cs.start();
-  startProgressAnimation();
-  startLevelMeters();
+  // Show playback controls
   const playPauseBtn = document.getElementById("playPauseBtn");
-  playPauseBtn.textContent = "Pause";
+  const prevBtn = document.getElementById("prevBtn");
+  const nextBtn = document.getElementById("nextBtn");
+  const rewindBtn = document.getElementById("rewindBtn");
+
   playPauseBtn.style.display = "inline-block";
+  prevBtn.style.display = "inline-block";
+  nextBtn.style.display = "inline-block";
+  rewindBtn.style.display = "inline-block";
+
+  // Update button states
+  updateButtonStates();
+
+  // If this is the first file(s), start playing the first one
+  if (currentFileIndex === -1) {
+    await loadAndPlayFile(0);
+  }
 });
