@@ -152,6 +152,9 @@ h1 {
   font-size: 14px;
   color: #555;
   font-weight: 500;
+  background-color: rgba(255, 255, 255, 0.6);
+  padding: 6px 12px;
+  border-radius: 6px;
 }
 
 .color-picker {
@@ -170,10 +173,13 @@ h1 {
 .speed-label {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-size: 14px;
   color: #555;
   font-weight: 500;
+  background-color: rgba(255, 255, 255, 0.6);
+  padding: 6px 12px;
+  border-radius: 6px;
 }
 
 .speed-input {
@@ -659,6 +665,34 @@ h1 {
   cursor: not-allowed;
 }
 
+.slideshow-volume-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+}
+
+.slideshow-volume-control label {
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.slideshow-volume-control input[type="range"] {
+  width: 120px;
+  cursor: pointer;
+}
+
+.slideshow-volume-control span {
+  color: white;
+  font-size: 13px;
+  min-width: 40px;
+  text-align: right;
+}
+
 .slideshow-section-controls {
   display: flex;
   justify-content: center;
@@ -726,6 +760,11 @@ h1 {
   .slideshow-music-btn,
   .slideshow-section-btn {
     width: 200px;
+  }
+
+  .slideshow-volume-control {
+    flex-direction: row;
+    width: auto;
   }
 
   .slideshow-info h2 {

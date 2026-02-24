@@ -19,7 +19,10 @@ const audioOrchestra = `
 
     instr 1
       Sfile strget p4
+      kvol chnget "musicvol"
       a1, a2 diskin Sfile, 1
+      a1 = a1 * kvol
+      a2 = a2 * kvol
       out a1, a2
     endin
      `;
@@ -47,6 +50,9 @@ const startCsound = async () => {
   await csoundObj.start();
 
   await csoundObj.getNode();
+
+  // Set initial volume
+  await csoundObj.setControlChannel("musicvol", 0.7);
 
   csound = csoundObj;
   console.log("Csound initialized and ready, sample rate:", audioContext.sampleRate);
@@ -134,6 +140,8 @@ const slideshowPlayPauseBtn = document.getElementById('slideshowPlayPauseBtn');
 const slideshowMusicPlayPauseBtn = document.getElementById('slideshowMusicPlayPauseBtn');
 const slideshowPrevSongBtn = document.getElementById('slideshowPrevSongBtn');
 const slideshowNextSongBtn = document.getElementById('slideshowNextSongBtn');
+const slideshowVolumeSlider = document.getElementById('slideshowVolumeSlider');
+const slideshowVolumeValue = document.getElementById('slideshowVolumeValue');
 
 // Slideshow state
 let slideshowActive = false;
@@ -234,7 +242,9 @@ function renderSection(sectionData) {
   // Transition speed control
   const speedLabel = document.createElement('label');
   speedLabel.className = 'speed-label';
-  speedLabel.textContent = 'Speed: ';
+
+  const speedText = document.createElement('span');
+  speedText.textContent = 'Sec/Photo: ';
 
   const speedInput = document.createElement('input');
   speedInput.type = 'number';
@@ -243,13 +253,14 @@ function renderSection(sectionData) {
   speedInput.max = '10';
   speedInput.step = '1';
   speedInput.value = sectionData.transitionSpeed;
-  speedInput.title = 'Photo transition speed in seconds';
+  speedInput.title = 'Seconds per photo in slideshow';
   speedInput.addEventListener('change', (e) => updateTransitionSpeed(sectionData.id, parseInt(e.target.value)));
 
   const speedUnit = document.createElement('span');
   speedUnit.className = 'speed-unit';
   speedUnit.textContent = 's';
 
+  speedLabel.appendChild(speedText);
   speedLabel.appendChild(speedInput);
   speedLabel.appendChild(speedUnit);
 
@@ -741,6 +752,7 @@ function startSlideshow() {
   slideshowMusicPlayPauseBtn.addEventListener('click', toggleMusicPlayPause);
   slideshowPrevSongBtn.addEventListener('click', playPreviousSong);
   slideshowNextSongBtn.addEventListener('click', playNextSong);
+  slideshowVolumeSlider.addEventListener('input', updateMusicVolume);
 
   // Keyboard navigation
   document.addEventListener('keydown', handleSlideshowKeyboard);
@@ -778,6 +790,7 @@ function closeSlideshow() {
   slideshowMusicPlayPauseBtn.removeEventListener('click', toggleMusicPlayPause);
   slideshowPrevSongBtn.removeEventListener('click', playPreviousSong);
   slideshowNextSongBtn.removeEventListener('click', playNextSong);
+  slideshowVolumeSlider.removeEventListener('input', updateMusicVolume);
   slideshowToggleControlsBtn.removeEventListener('click', toggleControls);
   document.removeEventListener('keydown', handleSlideshowKeyboard);
 }
@@ -956,6 +969,16 @@ function startSlideshowAutoAdvance() {
       showNextImage();
     }
   }, transitionSpeed * 1000);
+}
+
+// Update music volume
+async function updateMusicVolume() {
+  const volume = parseFloat(slideshowVolumeSlider.value);
+  slideshowVolumeValue.textContent = `${Math.round(volume * 100)}%`;
+
+  if (csound) {
+    await csound.setControlChannel("musicvol", volume);
+  }
 }
 
 // Toggle music play/pause
