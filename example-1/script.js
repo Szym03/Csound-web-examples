@@ -39,7 +39,7 @@ schedule(1, 0, -1)
 let waveformData = null;
 let audioDuration = 0;
 
-// Store multiple files (just the File objects)
+// Store multiple files 
 let audioFiles = [];
 let currentFileIndex = -1;
 
@@ -199,7 +199,7 @@ async function updateLevelMeters() {
     } else if (level < 0.9) {
       meter.style.backgroundColor = "#FF9800"; // Orange - high
     } else {
-      meter.style.backgroundColor = "#F44336"; // Red - hot/clipping
+      meter.style.backgroundColor = "#F44336"; // Red - clipping
     }
   }
 
@@ -281,18 +281,23 @@ async function loadAndPlayFile(index) {
   stopProgressAnimation();
   stopLevelMeters();
 
-  // Properly stop and reset Csound
-  try {
-    await cs.stop();
-  } catch (err) {
-    console.log("Stop error (can be ignored):", err);
-  }
+  // Stop and completely restart Csound to avoid glitches
+  await cs.stop();
+  await cs.reset();
 
-  try {
-    await cs.reset();
-  } catch (err) {
-    console.log("Reset error (can be ignored):", err);
-  }
+  // Reinitialize Csound from scratch
+  const { Csound } = await import(url);
+  const csNew = await Csound({
+    useWorker: false,
+    useSPN: false,
+    outputChannelCount: 2,
+  });
+
+  await csNew.compileOrc(orc);
+  await csNew.setOption("-odac");
+
+  // Replace global cs reference
+  Object.assign(cs, csNew);
 
   // Load the file into Csound's filesystem
   const arrayBuffer = await file.arrayBuffer();
@@ -310,10 +315,6 @@ async function loadAndPlayFile(index) {
     console.error("Could not draw waveform:", err);
   }
 
-  // Recompile orchestra
-  await cs.compileOrc(orc);
-  await cs.setOption("-odac");
-
   // Reset volume to slider value
   await cs.setControlChannel("vol", parseFloat(volSlider.value));
 
@@ -322,12 +323,6 @@ async function loadAndPlayFile(index) {
 
   // Auto-start playback
   await cs.start();
-
-  // Reset playback state
-  pausedElapsedTime = 0;
-  playbackStartTime = performance.now();
-  isPlaying = true;
-
   startProgressAnimation();
   startLevelMeters();
   document.getElementById("playPauseBtn").textContent = "Pause";
@@ -454,18 +449,10 @@ document.body.addEventListener('drop', async (e) => {
   updateFileDisplay();
 
   // Show playback controls
-  const playPauseBtn = document.getElementById("playPauseBtn");
-  const prevBtn = document.getElementById("prevBtn");
-  const nextBtn = document.getElementById("nextBtn");
-  const rewindBtn = document.getElementById("rewindBtn");
-
-  playPauseBtn.style.display = "inline-block";
-  prevBtn.style.display = "inline-block";
-  nextBtn.style.display = "inline-block";
-  rewindBtn.style.display = "inline-block";
-
-  // Update button states
-  updateButtonStates();
+  document.getElementById("playPauseBtn").style.display = "inline-block";
+  document.getElementById("prevBtn").style.display = "inline-block";
+  document.getElementById("nextBtn").style.display = "inline-block";
+  document.getElementById("rewindBtn").style.display = "inline-block";
 
   // If this is the first file(s), start playing the first one
   if (currentFileIndex === -1) {
