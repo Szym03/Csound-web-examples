@@ -4,6 +4,7 @@
 // Spacebar - Play/Pause slideshow
 // M - Toggle music play/pause
 // H - Show/Hide controls
+// C - Show/Hide caption
 // Escape - Close slideshow
 
 //============= Csound setup =======================
@@ -132,8 +133,10 @@ const slideshowDescription = document.getElementById('slideshowDescription');
 const slideshowMusicInfo = document.getElementById('slideshowMusicInfo');
 const slideshowContent = document.getElementById('slideshowContent');
 const slideshowControlsWrapper = document.getElementById('slideshowControlsWrapper');
+const slideshowInfo = document.getElementById('slideshowInfo');
 const closeSlideshowBtn = document.getElementById('closeSlideshowBtn');
 const slideshowToggleControlsBtn = document.getElementById('slideshowToggleControlsBtn');
+const slideshowToggleCaptionBtn = document.getElementById('slideshowToggleCaptionBtn');
 const slideshowPrevImageBtn = document.getElementById('slideshowPrevImageBtn');
 const slideshowNextImageBtn = document.getElementById('slideshowNextImageBtn');
 const slideshowPrevSectionBtn = document.getElementById('slideshowPrevSectionBtn');
@@ -157,6 +160,7 @@ let currentAudioIndex = 0; // Current audio track index
 let musicPlaying = false;
 let currentAudioFilename = null; // Track the current playing filename
 let controlsVisible = true; // Track controls visibility
+let captionVisible = true; // Track caption visibility
 let lastSectionId = null; // Track last section to detect changes
 let backgroundInterval = null; // Background slideshow interval
 let currentBackgroundIndex = 0; // Current background image index
@@ -912,12 +916,17 @@ function startSlideshow() {
   musicPlaying = false;
   currentAudioFilename = null;
   controlsVisible = true;
+  captionVisible = true;
   lastSectionId = null;
 
   // Reset controls visibility
   slideshowContent.classList.remove('controls-hidden');
   slideshowControlsWrapper.classList.remove('hidden');
   slideshowToggleControlsBtn.textContent = 'Hide Controls';
+
+  // Reset caption visibility
+  slideshowInfo.classList.remove('caption-hidden');
+  slideshowToggleCaptionBtn.textContent = 'Hide Caption';
 
   // Show modal
   slideshowModal.style.display = 'flex';
@@ -931,6 +940,7 @@ function startSlideshow() {
   // Add event listeners
   closeSlideshowBtn.addEventListener('click', closeSlideshow);
   slideshowToggleControlsBtn.addEventListener('click', toggleControls);
+  slideshowToggleCaptionBtn.addEventListener('click', toggleCaption);
   slideshowPrevImageBtn.addEventListener('click', showPreviousImage);
   slideshowNextImageBtn.addEventListener('click', showNextImage);
   slideshowPrevSectionBtn.addEventListener('click', showPreviousSection);
@@ -988,6 +998,7 @@ function closeSlideshow() {
   slideshowNextSongBtn.removeEventListener('click', playNextSong);
   slideshowVolumeSlider.removeEventListener('input', updateMusicVolume);
   slideshowToggleControlsBtn.removeEventListener('click', toggleControls);
+  slideshowToggleCaptionBtn.removeEventListener('click', toggleCaption);
   document.removeEventListener('keydown', handleSlideshowKeyboard);
 }
 
@@ -1245,6 +1256,19 @@ function toggleControls() {
   }
 }
 
+// Toggle caption visibility
+function toggleCaption() {
+  captionVisible = !captionVisible;
+
+  if (captionVisible) {
+    slideshowInfo.classList.remove('caption-hidden');
+    slideshowToggleCaptionBtn.textContent = 'Hide Caption';
+  } else {
+    slideshowInfo.classList.add('caption-hidden');
+    slideshowToggleCaptionBtn.textContent = 'Show Caption';
+  }
+}
+
 // Update background photos for current section
 function updateBackgroundPhotos() {
   const currentSection = slideshowSections[currentSectionIndex];
@@ -1346,6 +1370,10 @@ function handleSlideshowKeyboard(e) {
     case 'h':
     case 'H':
       toggleControls();
+      break;
+    case 'c':
+    case 'C':
+      toggleCaption();
       break;
   }
 }
