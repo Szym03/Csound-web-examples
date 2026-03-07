@@ -128,6 +128,7 @@ const slideshowBackground = document.getElementById('slideshowBackground');
 const slideshowImage = document.getElementById('slideshowImage');
 const slideshowSectionLabel = document.getElementById('slideshowSectionLabel');
 const slideshowImageCounter = document.getElementById('slideshowImageCounter');
+const slideshowDescription = document.getElementById('slideshowDescription');
 const slideshowMusicInfo = document.getElementById('slideshowMusicInfo');
 const slideshowContent = document.getElementById('slideshowContent');
 const slideshowControlsWrapper = document.getElementById('slideshowControlsWrapper');
@@ -181,10 +182,12 @@ function addSection() {
     id: sectionId,
     label: `Section ${sections.length + 1}`, // Default label
     bgColor: COLOR_PALETTE[colorIndex],
+    description: '', // Section description
     images: [],
     backgroundImages: [], // Background photos for slideshow
     audio: [], // Empty for now
-    transitionSpeed: 3 // Default 3 seconds per photo
+    transitionSpeed: 3, // Default 3 seconds per photo
+    bgTransitionSpeed: 3 // Default 3 seconds per background photo
   };
 
   sections.push(section);
@@ -230,19 +233,6 @@ function renderSection(sectionData) {
   const controls = document.createElement('div');
   controls.className = 'section-controls';
 
-  // Color picker
-  const colorPickerLabel = document.createElement('label');
-  colorPickerLabel.className = 'color-picker-label';
-  colorPickerLabel.textContent = 'Color: ';
-
-  const colorPicker = document.createElement('input');
-  colorPicker.type = 'color';
-  colorPicker.className = 'color-picker';
-  colorPicker.value = sectionData.bgColor;
-  colorPicker.addEventListener('change', (e) => updateSectionColor(sectionData.id, e.target.value));
-
-  colorPickerLabel.appendChild(colorPicker);
-
   // Transition speed control
   const speedLabel = document.createElement('label');
   speedLabel.className = 'speed-label';
@@ -268,18 +258,61 @@ function renderSection(sectionData) {
   speedLabel.appendChild(speedInput);
   speedLabel.appendChild(speedUnit);
 
+  // Background speed control
+  const bgSpeedLabel = document.createElement('label');
+  bgSpeedLabel.className = 'speed-label';
+
+  const bgSpeedText = document.createElement('span');
+  bgSpeedText.textContent = 'BG Sec/Photo: ';
+
+  const bgSpeedInput = document.createElement('input');
+  bgSpeedInput.type = 'number';
+  bgSpeedInput.className = 'speed-input';
+  bgSpeedInput.min = '1';
+  bgSpeedInput.max = '10';
+  bgSpeedInput.step = '1';
+  bgSpeedInput.value = sectionData.bgTransitionSpeed || 3;
+  bgSpeedInput.title = 'Seconds per background photo in slideshow';
+  bgSpeedInput.addEventListener('change', (e) => updateBgTransitionSpeed(sectionData.id, parseInt(e.target.value)));
+
+  const bgSpeedUnit = document.createElement('span');
+  bgSpeedUnit.className = 'speed-unit';
+  bgSpeedUnit.textContent = 's';
+
+  bgSpeedLabel.appendChild(bgSpeedText);
+  bgSpeedLabel.appendChild(bgSpeedInput);
+  bgSpeedLabel.appendChild(bgSpeedUnit);
+
   // Remove section button
   const removeSectionBtn = document.createElement('button');
   removeSectionBtn.className = 'remove-section-btn';
   removeSectionBtn.textContent = 'Remove Section';
   removeSectionBtn.addEventListener('click', () => removeSection(sectionData.id));
 
-  controls.appendChild(colorPickerLabel);
   controls.appendChild(speedLabel);
+  controls.appendChild(bgSpeedLabel);
   controls.appendChild(removeSectionBtn);
 
   header.appendChild(labelContainer);
   header.appendChild(controls);
+
+  // Description textarea for this section
+  const descriptionContainer = document.createElement('div');
+  descriptionContainer.className = 'description-container';
+
+  const descriptionLabel = document.createElement('label');
+  descriptionLabel.className = 'description-label';
+  descriptionLabel.textContent = 'Description:';
+
+  const descriptionTextarea = document.createElement('textarea');
+  descriptionTextarea.className = 'section-description';
+  descriptionTextarea.placeholder = 'Add a short description for this section...';
+  descriptionTextarea.rows = 3;
+  descriptionTextarea.value = sectionData.description || '';
+  descriptionTextarea.addEventListener('input', (e) => updateSectionDescription(sectionData.id, e.target.value));
+
+  descriptionContainer.appendChild(descriptionLabel);
+  descriptionContainer.appendChild(descriptionTextarea);
 
   // File input for this section
   const uploadContainer = document.createElement('div');
@@ -385,6 +418,7 @@ function renderSection(sectionData) {
 
   // Assemble the section
   sectionElement.appendChild(header);
+  sectionElement.appendChild(descriptionContainer);
   sectionElement.appendChild(uploadContainer);
   sectionElement.appendChild(audioContainer);
   sectionElement.appendChild(bgContainer);
@@ -425,20 +459,6 @@ function toggleLabelEdit(sectionId, labelElement, editBtn) {
   }
 }
 
-// Update section background color
-function updateSectionColor(sectionId, newColor) {
-  const section = sections.find(s => s.id === sectionId);
-  if (section) {
-    section.bgColor = newColor;
-
-    // Update the section background
-    const sectionElement = document.querySelector(`.section-item[data-section-id="${sectionId}"]`);
-    if (sectionElement) {
-      sectionElement.style.backgroundColor = newColor;
-    }
-  }
-}
-
 // Update section transition speed
 function updateTransitionSpeed(sectionId, newSpeed) {
   const section = sections.find(s => s.id === sectionId);
@@ -448,6 +468,27 @@ function updateTransitionSpeed(sectionId, newSpeed) {
     // If this section is currently showing in slideshow, restart the interval
     if (slideshowActive && slideshowSections[currentSectionIndex]?.id === sectionId) {
       startSlideshowAutoAdvance();
+    }
+  }
+}
+
+// Update section description
+function updateSectionDescription(sectionId, newDescription) {
+  const section = sections.find(s => s.id === sectionId);
+  if (section) {
+    section.description = newDescription;
+  }
+}
+
+// Update background transition speed
+function updateBgTransitionSpeed(sectionId, newSpeed) {
+  const section = sections.find(s => s.id === sectionId);
+  if (section) {
+    section.bgTransitionSpeed = Math.max(1, Math.min(10, newSpeed)); // Clamp between 1-10
+
+    // If this section is currently showing in slideshow, restart the background interval
+    if (slideshowActive && slideshowSections[currentSectionIndex]?.id === sectionId) {
+      updateBackgroundPhotos();
     }
   }
 }
@@ -973,6 +1014,15 @@ async function showSlideshowImage() {
   // Update counter
   slideshowImageCounter.textContent = `Image ${currentImageIndex + 1} of ${currentSection.images.length} | Section ${currentSectionIndex + 1} of ${slideshowSections.length}`;
 
+  // Update description
+  if (currentSection.description && currentSection.description.trim() !== '') {
+    slideshowDescription.textContent = currentSection.description;
+    slideshowDescription.style.display = 'block';
+  } else {
+    slideshowDescription.textContent = '';
+    slideshowDescription.style.display = 'none';
+  }
+
   // Update section navigation buttons
   slideshowPrevSectionBtn.disabled = (slideshowSections.length <= 1);
   slideshowNextSectionBtn.disabled = (slideshowSections.length <= 1);
@@ -1237,7 +1287,10 @@ function updateBackgroundPhotos() {
 
   // Only cycle if there's more than one background image
   if (bgImages.length > 1) {
-    // Change background image every 3 seconds
+    // Get background transition speed from section (default to 3 seconds)
+    const bgSpeed = currentSection.bgTransitionSpeed || 3;
+
+    // Change background image based on section's bgTransitionSpeed
     backgroundInterval = setInterval(() => {
       if (!slideshowActive || !currentSection.backgroundImages || currentSection.backgroundImages.length === 0) {
         return;
@@ -1257,7 +1310,7 @@ function updateBackgroundPhotos() {
       if (nextBg) {
         nextBg.classList.add('active');
       }
-    }, 3000); // Change every 3 seconds
+    }, bgSpeed * 1000);
   }
 }
 
