@@ -124,6 +124,7 @@ const startSlideshowBtn = document.getElementById('startSlideshowBtn');
 
 // Slideshow elements
 const slideshowModal = document.getElementById('slideshowModal');
+const slideshowBackground = document.getElementById('slideshowBackground');
 const slideshowImage = document.getElementById('slideshowImage');
 const slideshowSectionLabel = document.getElementById('slideshowSectionLabel');
 const slideshowImageCounter = document.getElementById('slideshowImageCounter');
@@ -156,6 +157,8 @@ let musicPlaying = false;
 let currentAudioFilename = null; // Track the current playing filename
 let controlsVisible = true; // Track controls visibility
 let lastSectionId = null; // Track last section to detect changes
+let backgroundInterval = null; // Background slideshow interval
+let currentBackgroundIndex = 0; // Current background image index
 
 // Preview audio state
 let previewPlayingButton = null; // Track which button is playing
@@ -179,6 +182,7 @@ function addSection() {
     label: `Section ${sections.length + 1}`, // Default label
     bgColor: COLOR_PALETTE[colorIndex],
     images: [],
+    backgroundImages: [], // Background photos for slideshow
     audio: [], // Empty for now
     transitionSpeed: 3 // Default 3 seconds per photo
   };
@@ -295,6 +299,21 @@ function renderSection(sectionData) {
   fileInputLabel.appendChild(fileInput);
   uploadContainer.appendChild(fileInputLabel);
 
+  // Background photos input for this section
+  const bgInputLabel = document.createElement('label');
+  bgInputLabel.className = 'bg-input-label';
+  bgInputLabel.textContent = 'Add Background Photos';
+
+  const bgInput = document.createElement('input');
+  bgInput.type = 'file';
+  bgInput.className = 'section-bg-input';
+  bgInput.accept = 'image/*';
+  bgInput.multiple = true;
+  bgInput.addEventListener('change', (e) => handleBackgroundImageUpload(e, sectionData.id));
+
+  bgInputLabel.appendChild(bgInput);
+  uploadContainer.appendChild(bgInputLabel);
+
   // Audio file input for this section
   const audioInputLabel = document.createElement('label');
   audioInputLabel.className = 'audio-input-label';
@@ -328,6 +347,24 @@ function renderSection(sectionData) {
     });
   }
 
+  // Background images container for this section
+  const bgContainer = document.createElement('div');
+  bgContainer.className = 'section-bg-container';
+  bgContainer.dataset.sectionId = sectionData.id;
+
+  // Add placeholder if no background images
+  if (sectionData.backgroundImages.length === 0) {
+    const bgPlaceholder = document.createElement('p');
+    bgPlaceholder.className = 'bg-placeholder';
+    bgPlaceholder.textContent = 'No background photos yet. Click "Add Background Photos" to upload.';
+    bgContainer.appendChild(bgPlaceholder);
+  } else {
+    // Render existing background images
+    sectionData.backgroundImages.forEach((imageData, index) => {
+      displayBackgroundImage(imageData, index, sectionData.id, bgContainer);
+    });
+  }
+
   // Image gallery for this section
   const gallery = document.createElement('div');
   gallery.className = 'section-gallery';
@@ -350,6 +387,7 @@ function renderSection(sectionData) {
   sectionElement.appendChild(header);
   sectionElement.appendChild(uploadContainer);
   sectionElement.appendChild(audioContainer);
+  sectionElement.appendChild(bgContainer);
   sectionElement.appendChild(gallery);
 
   sectionsContainer.appendChild(sectionElement);
@@ -702,6 +740,114 @@ function refreshSectionAudio(sectionId) {
   }
 }
 
+// Handle background image upload for a specific section
+function handleBackgroundImageUpload(event, sectionId) {
+  const files = event.target.files;
+  const section = sections.find(s => s.id === sectionId);
+
+  if (!section || files.length === 0) return;
+
+  // Load each selected image
+  Array.from(files).forEach(file => {
+    if (file.type.startsWith('image/')) {
+      loadBackgroundImage(file, sectionId);
+    }
+  });
+
+  // Reset input so the same file can be selected again if needed
+  event.target.value = '';
+}
+
+// Load and display a background image
+function loadBackgroundImage(file, sectionId) {
+  const reader = new FileReader();
+
+  reader.onload = (e) => {
+    const imageData = {
+      src: e.target.result,
+      name: file.name
+    };
+
+    // Find the section and add image to its backgroundImages array
+    const section = sections.find(s => s.id === sectionId);
+    if (section) {
+      section.backgroundImages.push(imageData);
+
+      // Get the background container element for this section
+      const bgContainer = document.querySelector(`.section-bg-container[data-section-id="${sectionId}"]`);
+      if (bgContainer) {
+        // Remove placeholder if it exists
+        const placeholder = bgContainer.querySelector('.bg-placeholder');
+        if (placeholder) {
+          placeholder.remove();
+        }
+
+        // Display the new background image
+        const imageIndex = section.backgroundImages.length - 1;
+        displayBackgroundImage(imageData, imageIndex, sectionId, bgContainer);
+      }
+    }
+  };
+
+  reader.readAsDataURL(file);
+}
+
+// Display a background image in the container
+function displayBackgroundImage(imageData, index, sectionId, bgContainer) {
+  const container = document.createElement('div');
+  container.className = 'bg-image-container';
+  container.dataset.index = index;
+
+  const img = document.createElement('img');
+  img.src = imageData.src;
+  img.alt = imageData.name;
+  img.title = imageData.name;
+
+  const removeBtn = document.createElement('button');
+  removeBtn.className = 'remove-bg-btn';
+  removeBtn.innerHTML = '&times;';
+  removeBtn.title = 'Remove background image';
+  removeBtn.addEventListener('click', () => removeBackgroundImage(sectionId, index));
+
+  container.appendChild(img);
+  container.appendChild(removeBtn);
+  bgContainer.appendChild(container);
+}
+
+// Remove a specific background image from a section
+function removeBackgroundImage(sectionId, imageIndex) {
+  const section = sections.find(s => s.id === sectionId);
+  if (!section) return;
+
+  // Remove from array
+  section.backgroundImages.splice(imageIndex, 1);
+
+  // Refresh the background container for this section
+  refreshSectionBackgroundImages(sectionId);
+}
+
+// Refresh the background images display for a specific section
+function refreshSectionBackgroundImages(sectionId) {
+  const section = sections.find(s => s.id === sectionId);
+  if (!section) return;
+
+  const bgContainer = document.querySelector(`.section-bg-container[data-section-id="${sectionId}"]`);
+  if (!bgContainer) return;
+
+  bgContainer.innerHTML = '';
+
+  if (section.backgroundImages.length === 0) {
+    const placeholder = document.createElement('p');
+    placeholder.className = 'bg-placeholder';
+    placeholder.textContent = 'No background photos yet. Click "Add Background Photos" to upload.';
+    bgContainer.appendChild(placeholder);
+  } else {
+    section.backgroundImages.forEach((imageData, index) => {
+      displayBackgroundImage(imageData, index, sectionId, bgContainer);
+    });
+  }
+}
+
 //============ Slideshow Functionality ========================
 
 // Start the slideshow
@@ -756,6 +902,9 @@ function startSlideshow() {
 
   // Keyboard navigation
   document.addEventListener('keydown', handleSlideshowKeyboard);
+
+  // Initialize background photos
+  updateBackgroundPhotos();
 }
 
 // Close the slideshow
@@ -770,6 +919,12 @@ function closeSlideshow() {
   if (slideshowInterval) {
     clearInterval(slideshowInterval);
     slideshowInterval = null;
+  }
+
+  // Stop background slideshow
+  if (backgroundInterval) {
+    clearInterval(backgroundInterval);
+    backgroundInterval = null;
   }
 
   // Stop all audio (async but we don't need to wait)
@@ -826,11 +981,14 @@ async function showSlideshowImage() {
   slideshowPrevImageBtn.disabled = (currentSection.images.length <= 1);
   slideshowNextImageBtn.disabled = (currentSection.images.length <= 1);
 
-  // Handle audio when we move to a new section
+  // Handle audio and background when we move to a new section
   if (lastSectionId !== currentSection.id) {
     lastSectionId = currentSection.id;
     currentSectionAudio = currentSection.audio;
     currentAudioIndex = 0;
+
+    // Update background photos for new section
+    updateBackgroundPhotos();
 
     // Update music info display
     updateMusicInfo();
@@ -1034,6 +1192,72 @@ function toggleControls() {
     slideshowContent.classList.add('controls-hidden');
     slideshowControlsWrapper.classList.add('hidden');
     slideshowToggleControlsBtn.textContent = 'Show Controls';
+  }
+}
+
+// Update background photos for current section
+function updateBackgroundPhotos() {
+  const currentSection = slideshowSections[currentSectionIndex];
+  if (!currentSection) return;
+
+  // Stop existing background interval
+  if (backgroundInterval) {
+    clearInterval(backgroundInterval);
+    backgroundInterval = null;
+  }
+
+  // Clear background container
+  slideshowBackground.innerHTML = '';
+
+  // If no background images, show nothing
+  if (!currentSection.backgroundImages || currentSection.backgroundImages.length === 0) {
+    return;
+  }
+
+  const bgImages = currentSection.backgroundImages;
+
+  // Create background image elements (all at once, but only show one at a time)
+  bgImages.forEach((imageData, index) => {
+    const bgImgElement = document.createElement('div');
+    bgImgElement.className = 'bg-photo';
+    if (index === 0) {
+      bgImgElement.classList.add('active');
+    }
+    bgImgElement.dataset.bgIndex = index;
+
+    const img = document.createElement('img');
+    img.src = imageData.src;
+
+    bgImgElement.appendChild(img);
+    slideshowBackground.appendChild(bgImgElement);
+  });
+
+  // Start cycling through background images
+  currentBackgroundIndex = 0;
+
+  // Only cycle if there's more than one background image
+  if (bgImages.length > 1) {
+    // Change background image every 3 seconds
+    backgroundInterval = setInterval(() => {
+      if (!slideshowActive || !currentSection.backgroundImages || currentSection.backgroundImages.length === 0) {
+        return;
+      }
+
+      // Remove active class from current
+      const currentBg = slideshowBackground.querySelector('.bg-photo.active');
+      if (currentBg) {
+        currentBg.classList.remove('active');
+      }
+
+      // Move to next image
+      currentBackgroundIndex = (currentBackgroundIndex + 1) % bgImages.length;
+
+      // Add active class to next
+      const nextBg = slideshowBackground.querySelector(`[data-bg-index="${currentBackgroundIndex}"]`);
+      if (nextBg) {
+        nextBg.classList.add('active');
+      }
+    }, 3000); // Change every 3 seconds
   }
 }
 
